@@ -2,6 +2,8 @@
  * BitSage API Client for MCP Server
  */
 
+import { hash } from "starknet";
+
 export interface ClientConfig {
   apiUrl: string;
   starknetRpcUrl: string;
@@ -197,5 +199,144 @@ export class BitSageClient {
 
   async faucetStatus(address: string): Promise<FaucetStatus> {
     return this.fetch(`/api/faucet/status/${address}`);
+  }
+
+  // ZKML Proving (proxied to prover server)
+
+  private get proverUrl(): string {
+    return process.env.BITSAGE_PROVER_URL || "http://localhost:8080";
+  }
+
+  private get zkmlVerifierAddress(): string {
+    return (
+      process.env.ZKML_VERIFIER_ADDRESS ||
+      "0x005928ac548dc2719ef1b34869db2b61c2a55a4b148012fad742262a8d674fba"
+    );
+  }
+
+  private async proverFetch<T>(
+    path: string,
+    options: RequestInit = {}
+  ): Promise<T> {
+    const url = `${this.proverUrl}${path}`;
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "Unknown error");
+      throw new Error(`Prover API error (${response.status}): ${errorText}`);
+    }
+    return response.json() as Promise<T>;
+  }
+
+  async submitZkmlProof(req: {
+    model_id: string;
+    input?: number[];
+    gpu?: boolean;
+    security?: string;
+  }): Promise<{ job_id: string; status: string }> {
+    return this.proverFetch("/api/v1/prove", {
+      method: "POST",
+      body: JSON.stringify(req),
+    });
+  }
+
+  async getZkmlProofStatus(jobId: string): Promise<{
+    job_id: string;
+    status: string;
+    progress_bps: number;
+    elapsed_secs: number;
+  }> {
+    return this.proverFetch(`/api/v1/prove/${jobId}`);
+  }
+
+  async getZkmlProofResult(jobId: string): Promise<{
+    calldata: string[];
+    io_commitment: string;
+    weight_commitment: string;
+    layer_chain_commitment: string;
+    estimated_gas: number;
+    num_matmul_proofs: number;
+    num_layers: number;
+    prove_time_ms: number;
+    tee_attestation_hash: string | null;
+  }> {
+    return this.proverFetch(`/api/v1/prove/${jobId}/result`);
+  }
+
+  async isZkmlProofVerified(proofHash: string): Promise<boolean> {
+    try {
+      const result = await this.starknetCall(
+        this.zkmlVerifierAddress,
+        "is_proof_verified",
+        [proofHash]
+      );
+      return result === "0x1" || result === "1";
+    } catch {
+      return false;
+    }
+  }
+
+  async getZkmlVerificationCount(modelId: string): Promise<number> {
+    try {
+      const result = await this.starknetCall(
+        this.zkmlVerifierAddress,
+        "get_verification_count",
+        [modelId]
+      );
+      return Number(result ?? "0");
+    } catch {
+      return 0;
+    }
+  }
+
+  async getZkmlModelCommitment(modelId: string): Promise<string | null> {
+    try {
+      const result = await this.starknetCall(
+        this.zkmlVerifierAddress,
+        "get_model_commitment",
+        [modelId]
+      );
+      return result ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async starknetCall(
+    contractAddress: string,
+    entryPoint: string,
+    calldata: string[]
+  ): Promise<string | null> {
+    const url = this.config.starknetRpcUrl;
+    // Convert function name to sn_keccak selector (felt252 hex)
+    const selector = hash.getSelectorFromName(entryPoint);
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "starknet_call",
+        params: [
+          {
+            contract_address: contractAddress,
+            entry_point_selector: selector,
+            calldata,
+          },
+          "latest",
+        ],
+      }),
+    });
+    const json = (await response.json()) as {
+      result?: string[];
+      error?: { message: string };
+    };
+    if (json.error) throw new Error(json.error.message);
+    return json.result?.[0] ?? null;
   }
 }

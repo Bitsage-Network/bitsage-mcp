@@ -24,6 +24,7 @@ import { proofTools, PROOF_TOOLS } from "./tools/proofs.js";
 import { stakingTools, STAKING_TOOLS } from "./tools/staking.js";
 import { faucetTools, FAUCET_TOOLS } from "./tools/faucet.js";
 import { networkTools, NETWORK_TOOLS } from "./tools/network.js";
+import { zkmlTools, ZKML_TOOLS } from "./tools/zkml.js";
 import { BitSageClient, ClientConfig } from "./client.js";
 
 // Configuration from environment
@@ -59,6 +60,7 @@ const ALL_TOOLS: Tool[] = [
   ...STAKING_TOOLS,
   ...FAUCET_TOOLS,
   ...NETWORK_TOOLS,
+  ...ZKML_TOOLS,
 ];
 
 // Handle list tools request
@@ -119,6 +121,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     // Network tools
     if (name in networkTools) {
       const result = await networkTools[name as keyof typeof networkTools](
+        client,
+        args as Record<string, unknown>
+      );
+      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+    }
+
+    // ZKML tools
+    if (name in zkmlTools) {
+      const result = await zkmlTools[name as keyof typeof zkmlTools](
         client,
         args as Record<string, unknown>
       );
