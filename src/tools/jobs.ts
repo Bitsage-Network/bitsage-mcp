@@ -124,7 +124,7 @@ export const jobTools = {
     const requireTee = (args.require_tee as boolean) || false;
 
     // Build job type object based on type
-    let jobTypeObj: Record<string, unknown> = { type: jobType };
+    const jobTypeObj: { type: string; [key: string]: unknown } = { type: jobType };
 
     switch (jobType) {
       case "ai_inference":

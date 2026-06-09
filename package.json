@@ -1,5 +1,5 @@
 {
-  "name": "@bitsage/mcp-server",
+  "name": "@obelyzk/mcp-server",
   "version": "0.1.0",
   "description": "MCP Server for BitSage Network - Enable LLMs to interact with distributed compute",
   "main": "dist/index.js",

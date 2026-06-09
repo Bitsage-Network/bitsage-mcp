@@ -18,7 +18,7 @@ export const NETWORK_TOOLS: Tool[] = [
 ];
 
 export const networkTools = {
-  bitsage_network_stats: async (client: BitSageClient) => {
+  bitsage_network_stats: async (client: BitSageClient, _args: Record<string, unknown>) => {
     const stats = await client.getNetworkStats();
 
     return {

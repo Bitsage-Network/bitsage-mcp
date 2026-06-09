@@ -42,7 +42,7 @@ describe.skipIf(SKIP_INTEGRATION)("MCP Tools Integration Tests", () => {
 
   describe("Network Tools", () => {
     it("bitsage_network_stats should return network statistics", async () => {
-      const result = await networkTools.bitsage_network_stats(client);
+      const result = await networkTools.bitsage_network_stats(client, {});
 
       expect(result).toHaveProperty("total_workers");
       expect(result).toHaveProperty("active_workers");
